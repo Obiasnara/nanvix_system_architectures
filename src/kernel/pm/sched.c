@@ -372,6 +372,20 @@ PUBLIC void yieldBasicCounter(void)
 		if (p->state != PROC_READY)
 			continue;
 
+		//Never let idle take if an another processus is available
+		if(candidat == IDLE && p != NULL){
+			candidat->counter++;
+			candidat = p;
+		}
+		/*
+		 * Process with higher
+		 * kernel priority
+		 */
+		else if (p->priority < candidat->priority)
+		{
+			candidat->counter++;
+			candidat = p;
+		}
 		/*
 		 * Process with higher
 		 * waiting time found.
