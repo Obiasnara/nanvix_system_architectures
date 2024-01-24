@@ -64,7 +64,7 @@ PUBLIC void resume(struct process *proc)
  */
 PUBLIC void yield(void)
 {
-	struct process *p;    /* Working process.     */
+	struct process *p;		  /* Working process.     */
 	struct process *candidat; /* candidat process to run. */
 
 	/* Re-schedule process for execution. */
@@ -93,40 +93,54 @@ PUBLIC void yield(void)
 		// Skip non-ready process.
 		if (p->state != PROC_READY)
 			continue;
-		if( candidat == IDLE ) { // If previous candidate is IDLE, then candidat is p
+		if (candidat == IDLE)
+		{ // If previous candidate is IDLE, then candidat is p
 			candidat = p;
 			continue;
-		} else if (p == IDLE) // If the next candidate is IDLE, then skip
+		}
+		else if (p == IDLE) // If the next candidate is IDLE, then skip
 		{
 			continue;
 		}
-		
+
 		// Combine priority and nice value.
 		// 3 scenarios: 1. priority is negative and nice is negative 2. priority is negative and nice is positive (vice versa) 3. priority is positive and nice is positive
-		
+
 		// First step out everything to positive
 		int priority = p->priority;
 		int nice = p->nice;
-		if (priority < 0) {
+		if (priority < 0)
+		{
 			priority = -priority;
-		} else {
+		}
+		else
+		{
 			priority = priority;
 		}
-		if (nice < 0) {
+		if (nice < 0)
+		{
 			nice = -nice;
-		} else {
+		}
+		else
+		{
 			nice = nice;
 		}
 		int candidat_priority = candidat->priority;
 		int candidat_nice = candidat->nice;
-		if (candidat_priority < 0) {
+		if (candidat_priority < 0)
+		{
 			candidat_priority = -candidat_priority;
-		} else {
+		}
+		else
+		{
 			candidat_priority = candidat_priority;
 		}
-		if (candidat_nice < 0) {
+		if (candidat_nice < 0)
+		{
 			candidat_nice = -candidat_nice;
-		} else {
+		}
+		else
+		{
 			candidat_nice = candidat_nice;
 		}
 
@@ -135,16 +149,131 @@ PUBLIC void yield(void)
 		int candidat_combined = candidat_priority + candidat_nice;
 
 		// Third step, compare
-		if (p_combined > candidat_combined) {
+		if (p_combined > candidat_combined)
+		{
 			candidat->counter++;
 			candidat = p;
-		} else if (p_combined == candidat_combined && p->counter > candidat->counter) {
+		}
+		else if (p_combined == candidat_combined && p->counter > candidat->counter)
+		{
 			candidat->counter++;
 			candidat = p;
-		} else {
+		}
+		else
+		{
 			p->counter++;
 		}
+	}
 
+	/* Switch to candidat process. */
+	candidat->priority = PRIO_USER;
+	candidat->state = PROC_RUNNING;
+	candidat->counter = PROC_QUANTUM;
+	if (curr_proc != candidat)
+		switch_to(candidat);
+}
+
+PUBLIC void yieldPriorityAndNice(void)
+{
+	struct process *p;		  /* Working process.     */
+	struct process *candidat; /* candidat process to run. */
+
+	/* Re-schedule process for execution. */
+	if (curr_proc->state == PROC_RUNNING)
+		sched(curr_proc);
+
+	/* Remember this process. */
+	last_proc = curr_proc;
+
+	/* Check alarm. */
+	for (p = FIRST_PROC; p <= LAST_PROC; p++)
+	{
+		/* Skip invalid processes. */
+		if (!IS_VALID(p))
+			continue;
+
+		/* Alarm has expired. */
+		if ((p->alarm) && (p->alarm < ticks))
+			p->alarm = 0, sndsig(p, SIGALRM);
+	}
+
+	/* Choose a process to run candidat. */
+	candidat = IDLE;
+	for (p = FIRST_PROC; p <= LAST_PROC; p++)
+	{
+		// Skip non-ready process.
+		if (p->state != PROC_READY)
+			continue;
+		if (candidat == IDLE)
+		{ // If previous candidate is IDLE, then candidat is p
+			candidat = p;
+			continue;
+		}
+		else if (p == IDLE) // If the next candidate is IDLE, then skip
+		{
+			continue;
+		}
+
+		// Combine priority and nice value.
+		// 3 scenarios: 1. priority is negative and nice is negative 2. priority is negative and nice is positive (vice versa) 3. priority is positive and nice is positive
+
+		// First step out everything to positive
+		int priority = p->priority;
+		int nice = p->nice;
+		if (priority < 0)
+		{
+			priority = -priority;
+		}
+		else
+		{
+			priority = priority;
+		}
+		if (nice < 0)
+		{
+			nice = -nice;
+		}
+		else
+		{
+			nice = nice;
+		}
+		int candidat_priority = candidat->priority;
+		int candidat_nice = candidat->nice;
+		if (candidat_priority < 0)
+		{
+			candidat_priority = -candidat_priority;
+		}
+		else
+		{
+			candidat_priority = candidat_priority;
+		}
+		if (candidat_nice < 0)
+		{
+			candidat_nice = -candidat_nice;
+		}
+		else
+		{
+			candidat_nice = candidat_nice;
+		}
+
+		// Second step, combine priority and nice value
+		int p_combined = priority + nice;
+		int candidat_combined = candidat_priority + candidat_nice;
+
+		// Third step, compare
+		if (p_combined > candidat_combined)
+		{
+			candidat->counter++;
+			candidat = p;
+		}
+		else if (p_combined == candidat_combined && p->counter > candidat->counter)
+		{
+			candidat->counter++;
+			candidat = p;
+		}
+		else
+		{
+			p->counter++;
+		}
 	}
 
 	/* Switch to candidat process. */
@@ -157,7 +286,7 @@ PUBLIC void yield(void)
 
 PUBLIC void yieldPriority(void)
 {
-	struct process *p;    /* Working process.     */
+	struct process *p;		  /* Working process.     */
 	struct process *candidat; /* candidat process to run. */
 
 	/* Re-schedule process for execution. */
@@ -186,16 +315,20 @@ PUBLIC void yieldPriority(void)
 		// Skip non-ready process.
 		if (p->state != PROC_READY)
 			continue;
-		
+
 		// Process with lower nice value found.
 		if (p->priority < candidat->priority)
 		{
 			candidat->counter++;
 			candidat = p;
-		} else if (p->priority == candidat->priority && p->counter > candidat->counter) {
+		}
+		else if (p->priority == candidat->priority && p->counter > candidat->counter)
+		{
 			candidat->counter++;
 			candidat = p;
-		} else {
+		}
+		else
+		{
 			p->counter++;
 		}
 	}
@@ -209,7 +342,7 @@ PUBLIC void yieldPriority(void)
 }
 PUBLIC void yieldBasicCounter(void)
 {
-	struct process *p;    /* Working process.     */
+	struct process *p;		  /* Working process.     */
 	struct process *candidat; /* candidat process to run. */
 
 	/* Re-schedule process for execution. */
