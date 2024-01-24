@@ -373,18 +373,18 @@ PUBLIC void yieldBasicCounter(void)
 			continue;
 
 		//Never let idle take if an another processus is available
-		if(next == IDLE && p != NULL){
-			next->counter++;
-			next = p;
+		if(candidat == IDLE && p != NULL){
+			candidat->counter++;
+			candidat = p;
 		}
 		/*
 		 * Process with higher
 		 * kernel priority
 		 */
-		else if (p->priority < next->priority)
+		else if (p->priority < candidat->priority)
 		{
-			next->counter++;
-			next = p;
+			candidat->counter++;
+			candidat = p;
 		}
 		/*
 		 * Process with higher
