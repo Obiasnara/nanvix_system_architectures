@@ -98,74 +98,89 @@ PUBLIC void yield(void)
 			candidat = p;
 			continue;
 		}
-		else if (p == IDLE) // If the next candidate is IDLE, then skip
-		{
-			continue;
-		}
-
-		// Combine priority and nice value.
-		// 3 scenarios: 1. priority is negative and nice is negative 2. priority is negative and nice is positive (vice versa) 3. priority is positive and nice is positive
-
-		// First step out everything to positive
-		int priority = p->priority;
-		int nice = p->nice;
-		if (priority < 0)
-		{
-			priority = -priority;
-		}
-		else
-		{
-			priority = priority;
-		}
-		if (nice < 0)
-		{
-			nice = -nice;
-		}
-		else
-		{
-			nice = nice;
-		}
-		int candidat_priority = candidat->priority;
-		int candidat_nice = candidat->nice;
-		if (candidat_priority < 0)
-		{
-			candidat_priority = -candidat_priority;
-		}
-		else
-		{
-			candidat_priority = candidat_priority;
-		}
-		if (candidat_nice < 0)
-		{
-			candidat_nice = -candidat_nice;
-		}
-		else
-		{
-			candidat_nice = candidat_nice;
-		}
-
-		// Second step, combine priority and nice value
-		int p_combined = priority + nice;
-		int candidat_combined = candidat_priority + candidat_nice;
-
-		// Third step, compare
-		if (p_combined > candidat_combined)
-		{
-			candidat->counter++;
+		// Combine priority and nice value and counter
+		if (p->priority < candidat->priority)
+		{ // Priority comparison
 			candidat = p;
 		}
-		else if (p_combined == candidat_combined && p->counter > candidat->counter)
+		else if (p->priority == candidat->priority)
 		{
-			candidat->counter++;
-			candidat = p;
-		}
-		else
-		{
-			p->counter++;
+			if (p->nice < candidat->nice)
+			{ // Nice comparison, the p process has higher nice priority
+				candidat = p;
+			}
+			else if (p->nice == candidat->nice)
+			{
+				if(p->utime + p->ktime < candidat->utime + candidat->ktime){
+					candidat = p;
+				} 
+			}
 		}
 	}
+	/* Switch to candidat process. */	
+	candidat->priority = PRIO_USER;
+	candidat->state = PROC_RUNNING;
+	candidat->counter = PROC_QUANTUM;
+	if (curr_proc != candidat)
+		switch_to(candidat);
+}
 
-	/* Switch to candidat process. */
+PUBLIC void yieldPriorityWorkingAndVerifiedByTeacher(void)
+{
+	struct process *p;		  /* Working process.     */
+	struct process *candidat; /* candidat process to run. */
+
+	/* Re-schedule process for execution. */
+	if (curr_proc->state == PROC_RUNNING)
+		sched(curr_proc);
+
+	/* Remember this process. */
+	last_proc = curr_proc;
+
+	/* Check alarm. */
+	for (p = FIRST_PROC; p <= LAST_PROC; p++)
+	{
+		/* Skip invalid processes. */
+		if (!IS_VALID(p))
+			continue;
+
+		/* Alarm has expired. */
+		if ((p->alarm) && (p->alarm < ticks))
+			p->alarm = 0, sndsig(p, SIGALRM);
+	}
+
+	/* Choose a process to run candidat. */
+	candidat = IDLE;
+	for (p = FIRST_PROC; p <= LAST_PROC; p++)
+	{
+		// Skip non-ready process.
+		if (p->state != PROC_READY)
+			continue;
+		if (candidat == IDLE)
+		{ // If previous candidate is IDLE, then candidat is p
+			candidat = p;
+			continue;
+		}
+		// Combine priority and nice value and counter
+		if (p->priority < candidat->priority)
+		{ // Priority comparison
+			candidat = p;
+		}
+		else if (p->priority == candidat->priority)
+		{
+			if (p->nice < candidat->nice)
+			{ // Nice comparison, the p process has higher nice priority
+				candidat = p;
+			}
+			else if (p->nice == candidat->nice)
+			{
+				if(p->utime + p->ktime < candidat->utime + candidat->ktime){
+					candidat = p;
+				} 
+			}
+		}
+	}
+	/* Switch to candidat process. */	
 	candidat->priority = PRIO_USER;
 	candidat->state = PROC_RUNNING;
 	candidat->counter = PROC_QUANTUM;
@@ -214,64 +229,117 @@ PUBLIC void yieldPriorityAndNice(void)
 			continue;
 		}
 
-		// Combine priority and nice value.
-		// 3 scenarios: 1. priority is negative and nice is negative 2. priority is negative and nice is positive (vice versa) 3. priority is positive and nice is positive
-
-		// First step out everything to positive
-		int priority = p->priority;
-		int nice = p->nice;
-		if (priority < 0)
-		{
-			priority = -priority;
-		}
-		else
-		{
-			priority = priority;
-		}
-		if (nice < 0)
-		{
-			nice = -nice;
-		}
-		else
-		{
-			nice = nice;
-		}
-		int candidat_priority = candidat->priority;
-		int candidat_nice = candidat->nice;
-		if (candidat_priority < 0)
-		{
-			candidat_priority = -candidat_priority;
-		}
-		else
-		{
-			candidat_priority = candidat_priority;
-		}
-		if (candidat_nice < 0)
-		{
-			candidat_nice = -candidat_nice;
-		}
-		else
-		{
-			candidat_nice = candidat_nice;
-		}
-
-		// Second step, combine priority and nice value
-		int p_combined = priority + nice;
-		int candidat_combined = candidat_priority + candidat_nice;
-
-		// Third step, compare
-		if (p_combined > candidat_combined)
-		{
+		// Combine priority and nice value and counter
+		if (p->priority < candidat->priority)
+		{ // Priority comparison
 			candidat->counter++;
 			candidat = p;
 		}
-		else if (p_combined == candidat_combined && p->counter > candidat->counter)
+		else if (p->priority == candidat->priority)
 		{
+			if (p->nice < candidat->nice)
+			{ // Nice comparison, the p process has higher nice priority
+				candidat->counter++;
+				candidat = p;
+			}
+			else if (p->nice == candidat->nice)
+			{
+				if (p->counter > candidat->counter)
+				{ // Counter comparison
+					candidat->counter++;
+					candidat = p;
+				} else { // Maintain the FIFO order
+					p->counter++;
+				}
+			} else { // Maintain the FIFO order
+				p->counter++;
+			}
+		}
+		else
+		{ // Maintain the FIFO order
+			p->counter++;
+		}
+	}
+
+	/* Switch to candidat process. */
+	candidat->nice = candidat->nice + 1; // Increase the nice value by 1 to avoid starvation
+	
+	candidat->priority = PRIO_USER;
+	candidat->state = PROC_RUNNING;
+	candidat->counter = PROC_QUANTUM;
+	if (curr_proc != candidat)
+		switch_to(candidat);
+}
+
+PUBLIC void yieldConditionalPrioriry(void)
+{
+	struct process *p;		  /* Working process.     */
+	struct process *candidat; /* candidat process to run. */
+
+	/* Re-schedule process for execution. */
+	if (curr_proc->state == PROC_RUNNING)
+		sched(curr_proc);
+
+	/* Remember this process. */
+	last_proc = curr_proc;
+
+	/* Check alarm. */
+	for (p = FIRST_PROC; p <= LAST_PROC; p++)
+	{
+		/* Skip invalid processes. */
+		if (!IS_VALID(p))
+			continue;
+
+		/* Alarm has expired. */
+		if ((p->alarm) && (p->alarm < ticks))
+			p->alarm = 0, sndsig(p, SIGALRM);
+	}
+
+	/* Choose a process to run candidat. */
+	candidat = IDLE;
+	for (p = FIRST_PROC; p <= LAST_PROC; p++)
+	{
+		// Skip non-ready process.
+		if (p->state != PROC_READY)
+			continue;
+		if (candidat == IDLE)
+		{ // If previous candidate is IDLE, then candidat is p
+			candidat = p;
+			continue;
+		}
+		else if (p == IDLE) // If the next candidate is IDLE, then skip
+		{
+			continue;
+		}
+
+		// Combine priority and nice value and counter
+		if (p->priority < candidat->priority)
+		{ // Priority comparison
 			candidat->counter++;
 			candidat = p;
 		}
-		else
+		else if (p->priority == candidat->priority)
 		{
+			if (p->nice < candidat->nice)
+			{ // Nice comparison
+				candidat->counter++;
+				candidat = p;
+			}
+			else if (p->nice == candidat->nice)
+			{
+				if (p->counter > candidat->counter)
+				{ // Counter comparison
+					candidat->counter++;
+					candidat = p;
+				} else { // Maintain the FIFO order
+					p->counter++;
+				}
+			} else { // Maintain the FIFO order
+				p->counter++;
+			}
+		}
+		else
+		{ // Maintain the FIFO order
 			p->counter++;
 		}
 	}
@@ -283,7 +351,6 @@ PUBLIC void yieldPriorityAndNice(void)
 	if (curr_proc != candidat)
 		switch_to(candidat);
 }
-
 PUBLIC void yieldPriority(void)
 {
 	struct process *p;		  /* Working process.     */
@@ -315,6 +382,15 @@ PUBLIC void yieldPriority(void)
 		// Skip non-ready process.
 		if (p->state != PROC_READY)
 			continue;
+		if (candidat == IDLE)
+		{ // If previous candidate is IDLE, then candidat is p
+			candidat = p;
+			continue;
+		}
+		else if (p == IDLE) // If the next candidate is IDLE, then skip
+		{
+			continue;
+		}
 
 		// Process with lower nice value found.
 		if (p->priority < candidat->priority)
