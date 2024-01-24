@@ -98,32 +98,85 @@ PUBLIC void yield(void)
 			candidat = p;
 			continue;
 		}
-		// Combine priority and nice value and counter
-		if (p->priority < candidat->priority)
-		{ // Priority comparison
+		// Combine nice value and counter
+		if (p->nice < candidat->nice)
+		{ // Nice comparison, the p process has higher nice priority
 			candidat = p;
 		}
-		else if (p->priority == candidat->priority)
+		else if (p->nice == candidat->nice)
 		{
-			if (p->nice < candidat->nice)
-			{ // Nice comparison, the p process has higher nice priority
-				candidat = p;
-			}
-			else if (p->nice == candidat->nice)
+			if (p->utime + p->ktime < candidat->utime + candidat->ktime)
 			{
-				if(p->utime + p->ktime < candidat->utime + candidat->ktime){
-					candidat = p;
-				} 
+				candidat = p;
 			}
 		}
 	}
-	/* Switch to candidat process. */	
+	/* Switch to candidat process. */
 	candidat->priority = PRIO_USER;
 	candidat->state = PROC_RUNNING;
 	candidat->counter = PROC_QUANTUM;
 	if (curr_proc != candidat)
 		switch_to(candidat);
 }
+
+// PUBLIC void yieldLottery(void)
+// {
+// 	struct process *p;		  /* Working process.     */
+// 	struct process *candidat; /* candidate process to run. */
+// 	int total_tickets = 0;
+
+// 	/* Re-schedule process for execution. */
+// 	if (curr_proc->state == PROC_RUNNING)
+// 		sched(curr_proc);
+
+// 	/* Remember this process. */
+// 	last_proc = curr_proc;
+
+// 	/* Check alarm. */
+// 	for (p = FIRST_PROC; p <= LAST_PROC; p++)
+// 	{
+// 		/* Skip invalid processes. */
+// 		if (!IS_VALID(p))
+// 			continue;
+
+// 		/* Alarm has expired. */
+// 		if ((p->alarm) && (p->alarm < ticks))
+// 			p->alarm = 0, sndsig(p, SIGALRM);
+// 	}
+
+// 	/* Choose a process to run next. */
+// 	for (p = FIRST_PROC; p <= LAST_PROC; p++) {
+// 		if (p->state != PROC_READY)
+// 			continue;
+// 		p->ntickets = 10;
+// 		total_tickets += p->ntickets; // collect total number of tickets
+// 	}
+
+// 	candidat = IDLE;
+// 	if (total_tickets > 0) {
+// 		int ticket = CURRENT_TIME % total_tickets; // pick a random ticket
+// 		int sum_tickets = 0;
+// 		for (p = FIRST_PROC; p <= LAST_PROC; p++)
+// 		{
+// 			// Skip non-ready process.
+// 			if (p->state != PROC_READY)
+// 				continue;
+// 			// When we reach the ticket drawn, process is picked
+// 			sum_tickets += p->ntickets;
+// 			if (sum_tickets > ticket)
+// 			{
+// 				candidat = p;
+// 				break;
+// 			}
+// 		}
+// 	}
+// 	/* Switch to candidat process. */
+// 	candidat->priority = PRIO_USER;
+// 	candidat->state = PROC_RUNNING;
+// 	candidat->counter = PROC_QUANTUM;
+// 	if (curr_proc != candidat)
+// 		switch_to(candidat);
+// }
 
 PUBLIC void yieldPriorityWorkingAndVerifiedByTeacher(void)
 {
@@ -161,33 +214,39 @@ PUBLIC void yieldPriorityWorkingAndVerifiedByTeacher(void)
 			candidat = p;
 			continue;
 		}
-		// Combine priority and nice value and counter
-		if (p->priority < candidat->priority)
-		{ // Priority comparison
+		/* 
+			We are not using the priority field of the process struct
+			because the only non waiting priority is PRIO_USER (40)
+			so every process that is ready has the same priority.
+
+			We also use ktime and utime to calculate the time that the process
+			instead of the counter field. This is because the counter field is
+			used to implement the round robin algorithm with FIFO order and we 
+			prefer to use the 'past time' of kernel or user time usage to help
+			us chose between 2 process.
+
+		*/
+
+		// Combine nice value and counter
+		if (p->nice < candidat->nice)
+		{ // Nice comparison, the p process has higher nice priority
 			candidat = p;
 		}
-		else if (p->priority == candidat->priority)
+		else if (p->nice == candidat->nice)
 		{
-			if (p->nice < candidat->nice)
-			{ // Nice comparison, the p process has higher nice priority
-				candidat = p;
-			}
-			else if (p->nice == candidat->nice)
+			if (p->utime + p->ktime < candidat->utime + candidat->ktime)
 			{
-				if(p->utime + p->ktime < candidat->utime + candidat->ktime){
-					candidat = p;
-				} 
+				candidat = p;
 			}
 		}
 	}
-	/* Switch to candidat process. */	
+	/* Switch to candidat process. */
 	candidat->priority = PRIO_USER;
 	candidat->state = PROC_RUNNING;
 	candidat->counter = PROC_QUANTUM;
 	if (curr_proc != candidat)
 		switch_to(candidat);
 }
-
 PUBLIC void yieldPriorityAndNice(void)
 {
 	struct process *p;		  /* Working process.     */
@@ -248,10 +307,14 @@ PUBLIC void yieldPriorityAndNice(void)
 				{ // Counter comparison
 					candidat->counter++;
 					candidat = p;
-				} else { // Maintain the FIFO order
+				}
+				else
+				{ // Maintain the FIFO order
 					p->counter++;
 				}
-			} else { // Maintain the FIFO order
+			}
+			else
+			{ // Maintain the FIFO order
 				p->counter++;
 			}
 		}
@@ -263,14 +326,13 @@ PUBLIC void yieldPriorityAndNice(void)
 
 	/* Switch to candidat process. */
 	candidat->nice = candidat->nice + 1; // Increase the nice value by 1 to avoid starvation
-	
+
 	candidat->priority = PRIO_USER;
 	candidat->state = PROC_RUNNING;
 	candidat->counter = PROC_QUANTUM;
 	if (curr_proc != candidat)
 		switch_to(candidat);
 }
-
 PUBLIC void yieldConditionalPrioriry(void)
 {
 	struct process *p;		  /* Working process.     */
@@ -331,10 +393,14 @@ PUBLIC void yieldConditionalPrioriry(void)
 				{ // Counter comparison
 					candidat->counter++;
 					candidat = p;
-				} else { // Maintain the FIFO order
+				}
+				else
+				{ // Maintain the FIFO order
 					p->counter++;
 				}
-			} else { // Maintain the FIFO order
+			}
+			else
+			{ // Maintain the FIFO order
 				p->counter++;
 			}
 		}
