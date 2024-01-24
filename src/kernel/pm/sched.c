@@ -23,7 +23,7 @@
 #include <nanvix/hal.h>
 #include <nanvix/pm.h>
 #include <signal.h>
-
+#include <nanvix/klib.h> // For random number generator (krand)
 /**
  * @brief Schedules a process to execution.
  *
@@ -59,6 +59,7 @@ PUBLIC void resume(struct process *proc)
 		sched(proc);
 }
 
+int total_ticket = 0;
 /**
  * @brief Yields the processor.
  */
@@ -80,17 +81,28 @@ PUBLIC void yield(void)
 		/* Skip invalid processes. */
 		if (!IS_VALID(p))
 			continue;
-
 		/* Alarm has expired. */
 		if ((p->alarm) && (p->alarm < ticks))
 			p->alarm = 0, sndsig(p, SIGALRM);
 	}
 
-	/* Choose a process to run candidat. */
 	candidat = IDLE;
+
+	// Initialize the number of tickets
+	if (total_ticket == 0)
+	{
+		for (p = FIRST_PROC; p <= LAST_PROC; p++)
+		{
+			if (p->state != PROC_READY)
+				continue;
+			p->ntickets = 1000 / ((p->utime + p->ktime) + 1);
+			total_ticket += p->ntickets; // collect total number of tickets
+		}
+	}
+
+	int random = krand() % total_ticket + 1; // pick a random ticket right now (without new tickets update)
 	for (p = FIRST_PROC; p <= LAST_PROC; p++)
 	{
-		// Skip non-ready process.
 		if (p->state != PROC_READY)
 			continue;
 		if (candidat == IDLE)
@@ -98,19 +110,18 @@ PUBLIC void yield(void)
 			candidat = p;
 			continue;
 		}
-		// Combine nice value and counter
-		if (p->nice < candidat->nice)
-		{ // Nice comparison, the p process has higher nice priority
-			candidat = p;
-		}
-		else if (p->nice == candidat->nice)
+		if (p->ntickets > random)
 		{
-			if (p->utime + p->ktime < candidat->utime + candidat->ktime)
-			{
-				candidat = p;
-			}
+			candidat = p;
+			break;
+		}
+		else
+		{
+			p->ntickets = 1000 / ((p->utime + p->ktime) + 1);
+			total_ticket += p->ntickets; // collect total number of tickets
 		}
 	}
+
 	/* Switch to candidat process. */
 	candidat->priority = PRIO_USER;
 	candidat->state = PROC_RUNNING;
@@ -214,14 +225,14 @@ PUBLIC void yieldPriorityWorkingAndVerifiedByTeacher(void)
 			candidat = p;
 			continue;
 		}
-		/* 
+		/*
 			We are not using the priority field of the process struct
 			because the only non waiting priority is PRIO_USER (40)
 			so every process that is ready has the same priority.
 
 			We also use ktime and utime to calculate the time that the process
 			instead of the counter field. This is because the counter field is
-			used to implement the round robin algorithm with FIFO order and we 
+			used to implement the round robin algorithm with FIFO order and we
 			prefer to use the 'past time' of kernel or user time usage to help
 			us chose between 2 process.
 
