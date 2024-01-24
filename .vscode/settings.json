@@ -1,5 +1,8 @@
 {
     "files.associations": {
-        "types.h": "c"
+        "types.h": "c",
+        "const.h": "c",
+        "signal.h": "c",
+        "pm.h": "c"
     }
 }
