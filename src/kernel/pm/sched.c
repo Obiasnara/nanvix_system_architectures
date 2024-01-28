@@ -60,6 +60,7 @@ PUBLIC void resume(struct process *proc)
 }
 
 int total_ticket = 0;
+
 /**
  * @brief Yields the processor.
  */
@@ -67,6 +68,12 @@ PUBLIC void yield(void)
 {
 	struct process *p;		  /* Working process.     */
 	struct process *candidat; /* candidat process to run. */
+
+	// Declare random number generator
+    int random = 0;
+    // Declare total number of tickets
+    int tot_ticket = 0;
+
 
 	/* Re-schedule process for execution. */
 	if (curr_proc->state == PROC_RUNNING)
@@ -91,6 +98,7 @@ PUBLIC void yield(void)
 	// Initialize the number of tickets
 	if (total_ticket == 0)
 	{
+		total_ticket = 0;
 		for (p = FIRST_PROC; p <= LAST_PROC; p++)
 		{
 			if (p->state != PROC_READY)
@@ -100,7 +108,16 @@ PUBLIC void yield(void)
 		}
 	}
 
-	int random = krand() % total_ticket + 1; // pick a random ticket right now (without new tickets update)
+	// Allocate memory for random and tot_ticket
+    random = 0;
+    tot_ticket = 0;
+
+   
+
+    random = krand() % (total_ticket) + 1; // pick a random ticket right now (without new tickets update)
+
+
+	
 	for (p = FIRST_PROC; p <= LAST_PROC; p++)
 	{
 		if (p->state != PROC_READY)
@@ -110,13 +127,15 @@ PUBLIC void yield(void)
 			candidat = p;
 			continue;
 		}
-		if (p->ntickets > random)
+		tot_ticket += p->ntickets;
+		if (tot_ticket > random)
 		{
 			candidat = p;
 			break;
 		}
 		else
 		{
+			total_ticket -= p->ntickets;
 			p->ntickets = 1000 / ((p->utime + p->ktime) + 1);
 			total_ticket += p->ntickets; // collect total number of tickets
 		}
@@ -126,6 +145,7 @@ PUBLIC void yield(void)
 	candidat->priority = PRIO_USER;
 	candidat->state = PROC_RUNNING;
 	candidat->counter = PROC_QUANTUM;
+
 	if (curr_proc != candidat)
 		switch_to(candidat);
 }

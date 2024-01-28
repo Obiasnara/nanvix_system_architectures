@@ -644,8 +644,11 @@ int main(int argc, char **argv)
 				(!sched_test0()) ? "PASSED" : "FAILED");
 			printf("  dynamic priorities [%s]\n",
 				(!sched_test1()) ? "PASSED" : "FAILED");
-			printf("  scheduler stress   [%s]\n",
-				(!sched_test2() && !sched_test3()) ? "PASSED" : "FAILED");
+			printf("  scheduler stress 1  [%s]\n",
+				(!sched_test2()) ? "PASSED" : "FAILED");
+			printf("  scheduler stress 2  [%s]\n",
+				(!sched_test3()) ? "PASSED" : "FAILED");
+			
 		}
 
 		/* IPC test. */
