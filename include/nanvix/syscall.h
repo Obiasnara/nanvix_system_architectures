@@ -264,6 +264,21 @@
 	 */
 	EXTERN int sys_gticks(void);
 
+	/*
+	 * Creates a semaphore
+	 */
+	EXTERN int sys_semget(int key);
+
+	/*
+	 * Controls a semaphore
+	 */
+	EXTERN int sys_semctl(int semid, int cmd, int val);
+
+	/* 
+	 Performs semaphore operations
+	 */
+	EXTERN int sys_semop(int semid, int op);
+
 #endif /* _ASM_FILE_ */
 
 #endif /* NANVIX_SYSCALL_H_ */
