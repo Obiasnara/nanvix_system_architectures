@@ -46,6 +46,7 @@ toolchain
 
 # ISO Images
 *.img
+*.img.lock
 *.iso
 nanvix-iso/*
 tools/run/bochsrc.txt
@@ -53,3 +54,6 @@ tools/run/bochsrc.txt
 # Exceptions.
 !doc/paper/img/*.pdf
 !doc/paper/*.pdf
+
+# Editor tools
+.clangd

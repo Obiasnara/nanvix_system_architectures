@@ -59,7 +59,6 @@ PUBLIC void resume(struct process *proc)
 		sched(proc);
 }
 
-int total_ticket = 0;
 
 /**
  * @brief Yields the processor.
@@ -69,11 +68,9 @@ PUBLIC void yield(void)
 	struct process *p;		  /* Working process.     */
 	struct process *candidat; /* candidat process to run. */
 
-	// Declare random number generator
-    int random = 0;
     // Declare total number of tickets
-    int tot_ticket = 0;
-
+	int total_ticket = 0;
+	candidat = IDLE;
 
 	/* Re-schedule process for execution. */
 	if (curr_proc->state == PROC_RUNNING)
@@ -91,55 +88,38 @@ PUBLIC void yield(void)
 		/* Alarm has expired. */
 		if ((p->alarm) && (p->alarm < ticks))
 			p->alarm = 0, sndsig(p, SIGALRM);
+
+		// Initialize tickets for each process (a fixed number for the no-priority discipline)
+		p->ntickets = 10;
+		total_ticket += p->ntickets; // collect total number of tickets
 	}
 
-	candidat = IDLE;
-
-	// Initialize the number of tickets
-	if (total_ticket == 0)
+	int nready = 0;
+	for (p = FIRST_PROC; p <= LAST_PROC; p++)
 	{
-		total_ticket = 0;
-		for (p = FIRST_PROC; p <= LAST_PROC; p++)
-		{
-			if (p->state != PROC_READY)
-				continue;
-			p->ntickets = 1000 / ((p->utime + p->ktime) + 1);
-			total_ticket += p->ntickets; // collect total number of tickets
-		}
+		if (p->state == PROC_READY) nready++;
 	}
-
-	// Allocate memory for random and tot_ticket
-    random = 0;
-    tot_ticket = 0;
-
-   
-
-    random = krand() % (total_ticket) + 1; // pick a random ticket right now (without new tickets update)
-
-
-	
+	// Pick a random ticket
+    int random = (total_ticket == 0) ? 0 : (krand() % (total_ticket));
+    int acc = 0;
 	for (p = FIRST_PROC; p <= LAST_PROC; p++)
 	{
 		if (p->state != PROC_READY)
 			continue;
-		if (candidat == IDLE)
-		{ // If previous candidate is IDLE, then candidat is p
-			candidat = p;
-			continue;
-		}
-		tot_ticket += p->ntickets;
-		if (tot_ticket > random)
+		// if (candidat == IDLE)
+		// { // If previous candidate is IDLE, then candidat is p
+		// 	candidat = p;
+		// }
+		acc += p->ntickets;
+		if (acc > random)
 		{
 			candidat = p;
+    		// kprintf("candidat=%d total_ticket=%d nready=%d random=%d acc=%d BREAK", candidat->pid, total_ticket, nready, random, acc);
 			break;
 		}
-		else
-		{
-			total_ticket -= p->ntickets;
-			p->ntickets = 1000 / ((p->utime + p->ktime) + 1);
-			total_ticket += p->ntickets; // collect total number of tickets
-		}
+    	// kprintf("candidat=%d total_ticket=%d nready=%d random=%d acc=%d", candidat->pid, total_ticket, nready, random, acc);
 	}
+
 
 	/* Switch to candidat process. */
 	candidat->priority = PRIO_USER;
@@ -150,64 +130,72 @@ PUBLIC void yield(void)
 		switch_to(candidat);
 }
 
-// PUBLIC void yieldLottery(void)
-// {
-// 	struct process *p;		  /* Working process.     */
-// 	struct process *candidat; /* candidate process to run. */
-// 	int total_tickets = 0;
+PUBLIC void yieldLottery(void)
+{
+	struct process *p;		  /* Working process.     */
+	struct process *candidat; /* candidat process to run. */
 
-// 	/* Re-schedule process for execution. */
-// 	if (curr_proc->state == PROC_RUNNING)
-// 		sched(curr_proc);
+    // Declare total number of tickets
+	int total_ticket = 0;
+	candidat = IDLE;
 
-// 	/* Remember this process. */
-// 	last_proc = curr_proc;
+	/* Re-schedule process for execution. */
+	if (curr_proc->state == PROC_RUNNING)
+		sched(curr_proc);
 
-// 	/* Check alarm. */
-// 	for (p = FIRST_PROC; p <= LAST_PROC; p++)
-// 	{
-// 		/* Skip invalid processes. */
-// 		if (!IS_VALID(p))
-// 			continue;
+	/* Remember this process. */
+	last_proc = curr_proc;
 
-// 		/* Alarm has expired. */
-// 		if ((p->alarm) && (p->alarm < ticks))
-// 			p->alarm = 0, sndsig(p, SIGALRM);
-// 	}
+	/* Check alarm. */
+	for (p = FIRST_PROC; p <= LAST_PROC; p++)
+	{
+		/* Skip invalid processes. */
+		if (!IS_VALID(p))
+			continue;
+		/* Alarm has expired. */
+		if ((p->alarm) && (p->alarm < ticks))
+			p->alarm = 0, sndsig(p, SIGALRM);
 
-// 	/* Choose a process to run next. */
-// 	for (p = FIRST_PROC; p <= LAST_PROC; p++) {
-// 		if (p->state != PROC_READY)
-// 			continue;
-// 		p->ntickets = 10;
-// 		total_tickets += p->ntickets; // collect total number of tickets
-// 	}
+		// Initialize tickets for each process (a fixed number for the no-priority discipline)
+		p->ntickets = 10;
+		total_ticket += p->ntickets; // collect total number of tickets
+	}
 
-// 	candidat = IDLE;
-// 	if (total_tickets > 0) {
-// 		int ticket = CURRENT_TIME % total_tickets; // pick a random ticket
-// 		int sum_tickets = 0;
-// 		for (p = FIRST_PROC; p <= LAST_PROC; p++)
-// 		{
-// 			// Skip non-ready process.
-// 			if (p->state != PROC_READY)
-// 				continue;
-// 			// When we reach the ticket drawn, process is picked
-// 			sum_tickets += p->ntickets;
-// 			if (sum_tickets > ticket)
-// 			{
-// 				candidat = p;
-// 				break;
-// 			}
-// 		}
-// 	}
-// 	/* Switch to candidat process. */
-// 	candidat->priority = PRIO_USER;
-// 	candidat->state = PROC_RUNNING;
-// 	candidat->counter = PROC_QUANTUM;
-// 	if (curr_proc != candidat)
-// 		switch_to(candidat);
-// }
+	int nready = 0;
+	for (p = FIRST_PROC; p <= LAST_PROC; p++)
+	{
+		if (p->state == PROC_READY) nready++;
+	}
+	// Pick a random ticket
+    int random = (total_ticket == 0) ? 0 : (krand() % (total_ticket));
+    int acc = 0;
+	for (p = FIRST_PROC; p <= LAST_PROC; p++)
+	{
+		if (p->state != PROC_READY)
+			continue;
+		// if (candidat == IDLE)
+		// { // If previous candidate is IDLE, then candidat is p
+		// 	candidat = p;
+		// }
+		acc += p->ntickets;
+		if (acc > random)
+		{
+			candidat = p;
+    		// kprintf("candidat=%d total_ticket=%d nready=%d random=%d acc=%d BREAK", candidat->pid, total_ticket, nready, random, acc);
+			break;
+		}
+    	// kprintf("candidat=%d total_ticket=%d nready=%d random=%d acc=%d", candidat->pid, total_ticket, nready, random, acc);
+	}
+
+
+	/* Switch to candidat process. */
+	candidat->priority = PRIO_USER;
+	candidat->state = PROC_RUNNING;
+	candidat->counter = PROC_QUANTUM;
+
+	if (curr_proc != candidat)
+		switch_to(candidat);
+}
 
 PUBLIC void yieldPriorityWorkingAndVerifiedByTeacher(void)
 {

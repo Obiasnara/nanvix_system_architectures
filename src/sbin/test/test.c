@@ -650,6 +650,10 @@ int main(int argc, char **argv)
 				(!sched_test3()) ? "PASSED" : "FAILED");
 			
 		}
+		else if (!strcmp(argv[i], "sched2")){
+			printf("  scheduler stress 2  [%s]\n",
+				(!sched_test3()) ? "PASSED" : "FAILED");
+		}
 
 		/* IPC test. */
 		else if (!strcmp(argv[i], "ipc"))
