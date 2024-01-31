@@ -59,8 +59,6 @@ PUBLIC void resume(struct process *proc)
 		sched(proc);
 }
 
-int total_ticket = 0;
-
 /**
  * @brief Yields the processor.
  */
@@ -69,10 +67,6 @@ PUBLIC void yield(void)
 	struct process *p;		  /* Working process.     */
 	struct process *candidat; /* candidat process to run. */
 
-	// Declare random number generator
-    int random = 0;
-    // Declare total number of tickets
-    int tot_ticket = 0;
 
 
 	/* Re-schedule process for execution. */
@@ -81,6 +75,10 @@ PUBLIC void yield(void)
 
 	/* Remember this process. */
 	last_proc = curr_proc;
+    // Declare total number of tickets
+    int tot_ticket = 0;
+
+
 
 	/* Check alarm. */
 	for (p = FIRST_PROC; p <= LAST_PROC; p++)
@@ -91,55 +89,23 @@ PUBLIC void yield(void)
 		/* Alarm has expired. */
 		if ((p->alarm) && (p->alarm < ticks))
 			p->alarm = 0, sndsig(p, SIGALRM);
+		tot_ticket += 41 - (p->nice) + p->utime+p->ktime + p->counter;
 	}
-
-	candidat = IDLE;
-
-	// Initialize the number of tickets
-	if (total_ticket == 0)
-	{
-		total_ticket = 0;
-		for (p = FIRST_PROC; p <= LAST_PROC; p++)
-		{
-			if (p->state != PROC_READY)
-				continue;
-			p->ntickets = 1000 / ((p->utime + p->ktime) + 1);
-			total_ticket += p->ntickets; // collect total number of tickets
+ 
+    candidat = IDLE;
+    int plage = 0;
+    int ticket_gagnant = ticks % tot_ticket;
+    for (p = FIRST_PROC; p <= LAST_PROC; p++)
+    {
+        if (p->state != PROC_READY)
+            continue;
+        plage += 41 - (p->nice) + p->utime+p->ktime + p->counter;
+        if(plage > ticket_gagnant){
+            candidat = p;
+        } else {
+			p->counter++;
 		}
-	}
-
-	// Allocate memory for random and tot_ticket
-    random = 0;
-    tot_ticket = 0;
-
-   
-
-    random = krand() % (total_ticket) + 1; // pick a random ticket right now (without new tickets update)
-
-
-	
-	for (p = FIRST_PROC; p <= LAST_PROC; p++)
-	{
-		if (p->state != PROC_READY)
-			continue;
-		if (candidat == IDLE)
-		{ // If previous candidate is IDLE, then candidat is p
-			candidat = p;
-			continue;
-		}
-		tot_ticket += p->ntickets;
-		if (tot_ticket > random)
-		{
-			candidat = p;
-			break;
-		}
-		else
-		{
-			total_ticket -= p->ntickets;
-			p->ntickets = 1000 / ((p->utime + p->ktime) + 1);
-			total_ticket += p->ntickets; // collect total number of tickets
-		}
-	}
+    }
 
 	/* Switch to candidat process. */
 	candidat->priority = PRIO_USER;
@@ -149,6 +115,92 @@ PUBLIC void yield(void)
 	if (curr_proc != candidat)
 		switch_to(candidat);
 }
+
+// PUBLIC void yieldLotteryV2(void)
+// {
+// 	struct process *p;		  /* Working process.     */
+// 	struct process *candidat; /* candidat process to run. */
+
+// 	// Declare random number generator
+//     int random = 0;
+//     // Declare total number of tickets
+//     int tot_ticket = 0;
+
+
+// 	/* Re-schedule process for execution. */
+// 	if (curr_proc->state == PROC_RUNNING)
+// 		sched(curr_proc);
+
+// 	/* Remember this process. */
+// 	last_proc = curr_proc;
+
+// 	/* Check alarm. */
+// 	for (p = FIRST_PROC; p <= LAST_PROC; p++)
+// 	{
+// 		/* Skip invalid processes. */
+// 		if (!IS_VALID(p))
+// 			continue;
+// 		/* Alarm has expired. */
+// 		if ((p->alarm) && (p->alarm < ticks))
+// 			p->alarm = 0, sndsig(p, SIGALRM);
+// 	}
+
+// 	candidat = IDLE;
+
+// 	// Initialize the number of tickets
+// 	if (total_ticket == 0)
+// 	{
+// 		total_ticket = 0;
+// 		for (p = FIRST_PROC; p <= LAST_PROC; p++)
+// 		{
+// 			if (p->state != PROC_READY)
+// 				continue;
+// 			p->ntickets = 1000 / ((p->utime + p->ktime) + 1);
+// 			total_ticket += p->ntickets; // collect total number of tickets
+// 		}
+// 	}
+
+// 	// Allocate memory for random and tot_ticket
+//     random = 0;
+//     tot_ticket = 0;
+
+   
+
+//     random = krand() % (total_ticket) + 1; // pick a random ticket right now (without new tickets update)
+
+
+	
+// 	for (p = FIRST_PROC; p <= LAST_PROC; p++)
+// 	{
+// 		if (p->state != PROC_READY)
+// 			continue;
+// 		if (candidat == IDLE)
+// 		{ // If previous candidate is IDLE, then candidat is p
+// 			candidat = p;
+// 			continue;
+// 		}
+// 		tot_ticket += p->ntickets;
+// 		if (tot_ticket > random)
+// 		{
+// 			candidat = p;
+// 			break;
+// 		}
+// 		else
+// 		{
+// 			total_ticket -= p->ntickets;
+// 			p->ntickets = 1000 / ((p->utime + p->ktime) + 1);
+// 			total_ticket += p->ntickets; // collect total number of tickets
+// 		}
+// 	}
+
+// 	/* Switch to candidat process. */
+// 	candidat->priority = PRIO_USER;
+// 	candidat->state = PROC_RUNNING;
+// 	candidat->counter = PROC_QUANTUM;
+
+// 	if (curr_proc != candidat)
+// 		switch_to(candidat);
+// }
 
 // PUBLIC void yieldLottery(void)
 // {
@@ -257,7 +309,6 @@ PUBLIC void yieldPriorityWorkingAndVerifiedByTeacher(void)
 			us chose between 2 process.
 
 		*/
-
 		// Combine nice value and counter
 		if (p->nice < candidat->nice)
 		{ // Nice comparison, the p process has higher nice priority
