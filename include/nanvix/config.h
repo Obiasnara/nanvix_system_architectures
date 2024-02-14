@@ -42,5 +42,6 @@
 	#define NR_FILES             256 /* Number of opened files.         */
 	#define NR_REGIONS           128 /* Number of memory regions.       */
 	#define NR_BUFFERS           256 /* Number of block buffers.        */
-
+	#define SEM_ENABLED              /* Enable semaphore support        */
+	#define SEM_MAX               50 /* Maximum number of semaphores    */
 #endif /* CONFIG_H_ */
