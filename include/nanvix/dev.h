@@ -129,6 +129,7 @@
 		ssize_t (*read)(dev_t, char *, size_t, off_t);        /* Read.        */
 		ssize_t (*write)(dev_t, const char *, size_t, off_t); /* Write.       */
 		int (*readblk)(unsigned, struct buffer *);            /* Read block.  */
+		int (*readblka)(unsigned, struct buffer *, void (*callback)(struct buffer *)); /* Read block with callback. */
 		int (*writeblk)(unsigned, struct buffer *);           /* Write block. */
 	};
 
@@ -180,7 +181,6 @@
 	 *   - ENOTSUP: operation not supported.
 	 */
 	EXTERN ssize_t bdev_read(dev_t dev, char *buf, size_t n, off_t off);
-
 	/*
 	 * Writes a block to a block device.
 	 */
@@ -190,5 +190,7 @@
 	 * Reads a block from a block device.
 	 */
 	EXTERN void bdev_readblk(struct buffer *buf);
+	EXTERN void bdev_readblka(struct buffer *buf, void (*callback)(struct buffer *));
+
 
 #endif /* DEV_H_ */

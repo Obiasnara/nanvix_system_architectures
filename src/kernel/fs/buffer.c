@@ -321,6 +321,53 @@ PUBLIC struct buffer *bread(dev_t dev, block_t num)
 	return (buf);
 }
 
+
+PRIVATE void breada_callback(struct buffer * buf)
+{
+	// Print buffer
+	kprintf("fs: breada_callback: buffer %p", buf);
+}
+
+/**
+ * @brief Reads a block from a device asynchronously.
+ *
+ * @details Reads the block numbered num synchronously from the device numbered
+ *          dev asynchronously.
+ *
+ * @param dev Device number.
+ * @param num Block number.
+ *
+ * @returns Upon successful asynchronously completion, a pointer to a buffer holding the
+ *          requested block is returned. In this case, the block buffer is
+ *          ensured to be locked. Upon failure, a NULL pointer is returned
+ *          instead.
+ *
+ * @note The device number should be valid.
+ * @note The block number should be valid.
+ */
+PUBLIC struct buffer *breada(dev_t dev, block_t num)
+{
+	struct buffer *buf;
+
+	buf = getblk(dev, num);
+
+	/* Valid buffer? */
+	if (buf->flags & BUFFER_VALID)
+		return (buf);
+
+	// Asynchronous read
+	bdev_readblka(buf, *breada_callback);
+
+	blklock(buf);
+	buf->flags |= BUFFER_VALID;
+	buf->flags &= ~BUFFER_DIRTY;
+	wakeup(&buf->chain);
+
+	return (buf);
+}
+
+
+
 /**
  * @brief Writes a block buffer to the underlying device.
  *

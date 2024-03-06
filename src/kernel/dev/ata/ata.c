@@ -178,13 +178,14 @@ struct ata_info
 #define REQ_WRITE (1 << 0) /* Write request?         */
 #define REQ_BUF   (1 << 1) /* Buffered request?      */
 #define REQ_SYNC  (1 << 2) /* Synchronous operation? */
-
+#define REQ_ASYNC  (1 << 2) /* Synchronous operation? */
 /*
  * I/O operation request.
  */
 struct request
 {
 	unsigned flags; /* Flags (see above). */
+	void (*callback)(buffer_t); /* Callback function. */
 
 	union
 	{
@@ -472,6 +473,65 @@ PRIVATE void ata_read_op(unsigned atadevid, struct request *req)
 }
 
 /*
+ * Issues a read operation.
+ */
+PRIVATE void ata_read_opa(unsigned atadevid, struct request *req, void (*callback)(buffer_t))
+{
+	int bus;       /* Bus number.        */
+	byte_t byte;   /* Byte used for I/O. */
+	uint64_t addr; /* Read address.      */
+	size_t size;    /* # bytes to read.   */
+
+	ata_device_select(atadevid);
+	bus = ata_bus(atadevid);
+
+	/* Buffered read. */
+	if (req->flags & REQ_BUF)
+	{
+		size = BLOCK_SIZE;
+		addr = buffer_num(req->u.buffered.buf) <<
+			(BLOCK_SIZE_LOG2 - ATA_SECTOR_SIZE_LOG2);
+	}
+
+	/* Raw read. */
+	else
+	{
+		size = req->u.raw.size;
+		addr = req->u.raw.num << (BLOCK_SIZE_LOG2 - ATA_SECTOR_SIZE_LOG2);
+	}
+
+	/*
+	 * Set LBA bit, to specify
+	 * that the address is in LBA.
+	 */
+	outputb(pio_ports[bus][ATA_REG_DEVCTL], 0x40);
+
+	/* Send the three highest bytes of the address. */
+	outputb(pio_ports[bus][ATA_REG_NSECT], 0x00);
+	outputb(pio_ports[bus][ATA_REG_LBAL], (addr >> 0x18) & 0xff);
+	outputb(pio_ports[bus][ATA_REG_LBAM], (addr >> 0x20) & 0xff);
+	outputb(pio_ports[bus][ATA_REG_LBAH], (addr >> 0x28) & 0xff);
+
+	/* Send the three lowest bytes of the address. */
+	outputb(pio_ports[bus][ATA_REG_NSECT], size/ATA_SECTOR_SIZE);
+	outputb(pio_ports[bus][ATA_REG_LBAL], (addr >> 0x00) & 0xff);
+	outputb(pio_ports[bus][ATA_REG_LBAM], (addr >> 0x08) & 0xff);
+	outputb(pio_ports[bus][ATA_REG_LBAH], (addr >> 0x10) & 0xff);
+
+	outputb(pio_ports[bus][ATA_REG_CMD], ATA_CMD_READ_SECTORS_EXT);
+	ata_bus_wait(bus);
+
+	/* Query return value. */
+	
+	byte = inputb(pio_ports[bus][ATA_REG_ASTATUS]);
+	if (byte & ATA_DF)
+		kprintf("ATA: device error");
+
+	callback(req->u.buffered.buf);
+}
+
+
+/*
  * Issues a write operation.
  */
 PRIVATE void ata_write_op(unsigned atadevid, struct request *req)
@@ -555,7 +615,7 @@ PRIVATE void ata_write_op(unsigned atadevid, struct request *req)
 /*
  * Schedules a block disk IO operation.
  */
-PRIVATE void ata_sched(unsigned atadevid, unsigned flags, ...)
+PRIVATE void ata_sched(unsigned atadevid, unsigned flags, void (*callback)(buffer_t), ...)
 {
 	va_list args;        /* Variable arg list. */
 	struct atadev *dev;  /* ATA device.        */
@@ -608,6 +668,8 @@ PRIVATE void ata_sched(unsigned atadevid, unsigned flags, ...)
 		{
 			if (flags & REQ_WRITE)
 				ata_write_op(atadevid, req);
+			else if (flags & REQ_ASYNC)
+				ata_read_opa(atadevid, req, callback);
 			else
 				ata_read_op(atadevid, req);
 		}
@@ -625,7 +687,16 @@ PRIVATE void ata_sched(unsigned atadevid, unsigned flags, ...)
 PRIVATE void
 ata_sched_buffered(unsigned atadevid, buffer_t buf, unsigned flags)
 {
-	ata_sched(atadevid, flags, buf);
+	ata_sched(atadevid, flags, NULL, buf);
+}
+
+/*
+ * Schedules a buffered I/O operation async with callback.
+ */
+PRIVATE void
+ata_sched_buffereda(unsigned atadevid, buffer_t buf, unsigned flags, void (*callback)(buffer_t))
+{
+	ata_sched(atadevid, flags, callback, buf);
 }
 
 /*
@@ -634,7 +705,7 @@ ata_sched_buffered(unsigned atadevid, buffer_t buf, unsigned flags)
 PRIVATE void
 ata_sched_raw(unsigned atadevid, block_t num, void *buf, size_t size, unsigned flags)
 {
-	ata_sched(atadevid, flags, num, buf, size);
+	ata_sched(atadevid, flags, NULL, num, buf, size);
 }
 
 /*============================================================================*
@@ -659,6 +730,32 @@ PRIVATE int ata_readblk(unsigned minor, buffer_t buf)
 		return (-EINVAL);
 
 	ata_sched_buffered(minor, buf, REQ_BUF | REQ_SYNC);
+
+	return (0);
+}
+
+/*
+ * Reads a block asynchronously from a ATA device.
+ */
+PRIVATE int ata_readblka(unsigned minor, buffer_t buf, void (*callback)(buffer_t))
+{
+	struct atadev *dev;
+
+	/* Invalid minor device. */
+	if (minor >= 4)
+		return (-EINVAL);
+
+	dev = &ata_devices[minor];
+
+	/* Device not valid. */
+	if (!(dev->flags & ATADEV_VALID))
+		return (-EINVAL);
+
+	/*
+     * Initiate the read operation and register the callback function.
+     * The callback function will be invoked when the read operation is complete.
+     */
+    ata_sched_buffereda(minor, buf, REQ_BUF, callback);
 
 	return (0);
 }
@@ -845,6 +942,7 @@ PRIVATE const struct bdev ata_ops = {
 	&ata_read,    /* read()     */
 	&ata_write,   /* write()    */
 	&ata_readblk, /* readblk()  */
+	&ata_readblka, /* readblka()  */
 	&ata_writeblk /* writeblk() */
 };
 

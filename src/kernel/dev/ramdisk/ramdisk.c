@@ -141,6 +141,14 @@ PRIVATE int ramdisk_readblk(unsigned minor, buffer_t buf)
 	return (0);
 }
 
+// NO async support
+PRIVATE int ramdisk_readblka(unsigned minor, buffer_t buf, void (*callback)(buffer_t)){
+	if(callback != NULL){
+		//
+	}
+	return ramdisk_readblk(minor, buf);
+}
+
 /*
  * Writes a block to a RAM disk device.
  */
@@ -165,8 +173,10 @@ PRIVATE const struct bdev ramdisk_driver = {
 	&ramdisk_read,     /* read()     */
 	&ramdisk_write,    /* write()    */
 	&ramdisk_readblk,  /* readblk()  */
+	&ramdisk_readblka,  /* readblk() */
 	&ramdisk_writeblk  /* writeblk() */
 };
+
 
 /*
  * Initializes the RAM disk device driver.
