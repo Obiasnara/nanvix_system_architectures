@@ -289,6 +289,9 @@ PUBLIC void brelse(struct buffer *buf)
 PUBLIC void buffer_valid_and_clean(struct buffer *buf) {
 	buf->flags |= BUFFER_VALID;
 	buf->flags &= ~BUFFER_DIRTY;
+
+	// Release the buffer
+	brelse(buf);
 }
 /**
  * @brief Reads a block from a device.
@@ -317,11 +320,30 @@ PUBLIC struct buffer *breada(dev_t dev, block_t num)
 	if (buf->flags & BUFFER_VALID)
 		return (buf);
 	
+	// Read a block synchronously
+	buf->flags |= BUFFER_SYNC_R;
 	bdev_readblk(buf);
 
 	/* Update buffer flags. */
 	buf->flags |= BUFFER_VALID;
 	buf->flags &= ~BUFFER_DIRTY;
+
+	// Let's prefetch a few blocks
+	struct buffer *prefetch_buf;
+	for (int i = 1; i < 32; i++) {
+		prefetch_buf = getblk(dev, num + i);
+
+		/* Valid buffer? */
+		if (buf->flags & BUFFER_VALID) {
+			// Buffer already present, no need to do anything
+			brelse(prefetch_buf);
+		} else {
+			// Read a block asynchronously
+			prefetch_buf->flags &= ~BUFFER_SYNC_R;
+			bdev_readblk(prefetch_buf);
+			// The read callback will release it
+		}
+	}
 
 	return (buf);
 }
@@ -530,7 +552,7 @@ PUBLIC void binit(void)
 		buffers[i].data = ptr;
 		buffers[i].count = 0;
 		buffers[i].flags =
-			~(BUFFER_VALID | BUFFER_LOCKED | BUFFER_DIRTY | BUFFER_SYNC);
+			~(BUFFER_VALID | BUFFER_LOCKED | BUFFER_DIRTY | BUFFER_SYNC | BUFFER_SYNC_R);
 		buffers[i].chain = NULL;
 		buffers[i].free_next =
 			(i + 1 == NR_BUFFERS) ? &free_buffers : &buffers[i + 1];
