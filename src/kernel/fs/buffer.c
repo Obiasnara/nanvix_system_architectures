@@ -285,6 +285,47 @@ PUBLIC void brelse(struct buffer *buf)
 	enable_interrupts();
 }
 
+
+PUBLIC void buffer_valid_and_clean(struct buffer *buf) {
+	buf->flags |= BUFFER_VALID;
+	buf->flags &= ~BUFFER_DIRTY;
+}
+/**
+ * @brief Reads a block from a device.
+ *
+ * @details Reads the block numbered num synchronously from the device numbered
+ *          dev.
+ *
+ * @param dev Device number.
+ * @param num Block number.
+ *
+ * @returns Upon successful completion, a pointer to a buffer holding the
+ *          requested block is returned. In this case, the block buffer is
+ *          ensured to be locked. Upon failure, a NULL pointer is returned
+ *          instead.
+ *
+ * @note The device number should be valid.
+ * @note The block number should be valid.
+ */
+PUBLIC struct buffer *breada(dev_t dev, block_t num)
+{
+	struct buffer *buf;
+
+	buf = getblk(dev, num);
+
+	/* Valid buffer? */
+	if (buf->flags & BUFFER_VALID)
+		return (buf);
+	
+	bdev_readblk(buf);
+
+	/* Update buffer flags. */
+	buf->flags |= BUFFER_VALID;
+	buf->flags &= ~BUFFER_DIRTY;
+
+	return (buf);
+}
+
 /**
  * @brief Reads a block from a device.
  *
@@ -304,22 +345,11 @@ PUBLIC void brelse(struct buffer *buf)
  */
 PUBLIC struct buffer *bread(dev_t dev, block_t num)
 {
-	struct buffer *buf;
-
-	buf = getblk(dev, num);
-
-	/* Valid buffer? */
-	if (buf->flags & BUFFER_VALID)
-		return (buf);
-
-	bdev_readblk(buf);
-
-	/* Update buffer flags. */
-	buf->flags |= BUFFER_VALID;
-	buf->flags &= ~BUFFER_DIRTY;
-
-	return (buf);
+	return breada(dev, num);
 }
+
+
+
 
 /**
  * @brief Writes a block buffer to the underlying device.
@@ -470,6 +500,11 @@ PUBLIC inline block_t buffer_num(const struct buffer *buf)
 PUBLIC inline int buffer_is_sync(const struct buffer *buf)
 {
 	return (buf->flags & BUFFER_SYNC);
+}
+
+PUBLIC inline int buffer_is_sync_read(const struct buffer *buf)
+{
+	return (buf->flags & BUFFER_SYNC_R);
 }
 
 /**
