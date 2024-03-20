@@ -169,6 +169,8 @@
 	 */
 	extern ssize_t read(int fd, void *buf, size_t n);
 
+	extern int test();
+
 	/*
 	 * Sets the effective user group ID of the calling process.
 	 */

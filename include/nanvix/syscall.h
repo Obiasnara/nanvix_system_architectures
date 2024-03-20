@@ -32,7 +32,7 @@
 	#include <sys/sem.h>
 
 	/* Number of system calls. */
-	#define NR_SYSCALLS 51
+	#define NR_SYSCALLS 52
 
 	/* System call numbers. */
 	#define NR_alarm     0
@@ -86,6 +86,7 @@
  	#define NR_semget   48
  	#define NR_semctl   49
  	#define NR_semop    50
+	#define NR_test	    51
 
 #ifndef _ASM_FILE_
 
@@ -279,6 +280,11 @@
 	 Performs semaphore operations
 	 */
 	EXTERN int sys_semop(int semid, int op);
+
+	/*
+	 * Test syscall
+	 */
+	EXTERN int sys_test(void);
 
 #endif /* _ASM_FILE_ */
 

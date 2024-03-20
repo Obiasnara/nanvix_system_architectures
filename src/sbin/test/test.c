@@ -28,6 +28,8 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
+#include <nanvix/fs.h>
+
 
 /* Test flags. */
 #define EXTENDED (1 << 0)
@@ -155,6 +157,84 @@ static int io_test(void)
 	/* Read hdd. */
 	if (read(fd, buffer, MEMORY_SIZE) != MEMORY_SIZE)
 		exit(EXIT_FAILURE);
+
+	t1 = times(&timing);
+
+	/* House keeping. */
+	free(buffer);
+	close(fd);
+
+	/* Print timing statistics. */
+	if (flags & VERBOSE)
+		printf("  Elapsed: %d\n", t1 - t0);
+
+	return (0);
+}
+
+
+/*============================================================================*
+ *                                  io_test_2                                 *
+ *============================================================================*/
+
+/**
+ * @brief I/O testing module.
+ *
+ * @details Reads sequentially the contents of the hard disk
+            to a in-memory buffer.
+ *
+ * @returns Zero if passed on test, and non-zero otherwise.
+ */
+#define IO_TEST_2_BUFFER_SIZE 0x100000
+#define IO_TEST_2_SEGMENT_SIZE 0x1000
+static int io_test_2(void)
+{
+	int fd;            /* File descriptor.    */
+	struct tms timing; /* Timing information. */
+	clock_t t0, t1;    /* Elapsed times.      */
+	char *buffer;      /* Buffer.             */
+
+	printf("Reading %d bytes in %d segments of %d\n", IO_TEST_2_BUFFER_SIZE, IO_TEST_2_BUFFER_SIZE/IO_TEST_2_SEGMENT_SIZE, IO_TEST_2_SEGMENT_SIZE);
+	/* Allocate buffer. */
+	buffer = malloc(IO_TEST_2_BUFFER_SIZE);
+	if (buffer == NULL)
+		exit(EXIT_FAILURE);
+
+	/* Open hdd. */
+	fd = open("/bigfile.bin", O_RDONLY);
+	struct stat file_stat;
+	stat("/bigfile.bin", &file_stat);
+	printf("File size: %d\n", file_stat.st_size);
+	printf("File mode: %x\n", file_stat.st_mode);
+	printf("File uid: %d\n", file_stat.st_uid);
+	printf("File gid: %d\n", file_stat.st_gid);
+
+	if (fd < 0)
+		exit(EXIT_FAILURE);
+
+	t0 = times(&timing);
+
+
+	for (size_t i = 0; i < IO_TEST_2_BUFFER_SIZE; i += IO_TEST_2_SEGMENT_SIZE) {
+		
+		if(i == 2*IO_TEST_2_SEGMENT_SIZE){
+			test();
+			printf("Test value changed\n");
+		}
+
+		ssize_t read_bytes = 0;
+		read_bytes = read(fd, buffer, IO_TEST_2_SEGMENT_SIZE);
+
+		/* Read hdd. */
+		if (read_bytes != IO_TEST_2_SEGMENT_SIZE) {
+			printf("Error reading\n");
+			printf("Read bytes: %d\n", read_bytes);
+			exit(EXIT_FAILURE);
+		}
+		// Dummy work: square the entire test buffer
+		for (long i = 0 ; i < IO_TEST_2_BUFFER_SIZE/10 ; i++){
+			buffer[i] *= buffer[i];
+		}
+	}
 
 	t1 = times(&timing);
 
@@ -602,7 +682,8 @@ static void usage(void)
 	printf("Brief: Performs regression tests on Nanvix.\n\n");
 	printf("Options:\n");
 	printf("  fpu   Floating Point Unit Test\n");
-	printf("  io    I/O Test\n");
+	printf("  io1    I/O Test 1\n");
+	printf("  io2    I/O Test 2\n");
 	printf("  ipc   Interprocess Communication Test\n");
 	printf("  swp   Swapping Test\n");
 	printf("  sched Scheduling Test\n");
@@ -622,11 +703,17 @@ int main(int argc, char **argv)
 	for (int i = 1; i < argc; i++)
 	{
 		/* I/O test. */
-		if (!strcmp(argv[i], "io"))
+		if (!strcmp(argv[i], "io1"))
 		{
-			printf("I/O Test\n");
+			printf("I/O Test 1 :\n");
 			printf("  Result:             [%s]\n",
 				(!io_test()) ? "PASSED" : "FAILED");
+		}
+		else if (!strcmp(argv[i], "io2"))
+		{
+			printf("I/O Test 2\n");
+			printf("  Result:             [%s]\n",
+				(!io_test_2()) ? "PASSED" : "FAILED");
 		}
 
 		/* Swapping test. */

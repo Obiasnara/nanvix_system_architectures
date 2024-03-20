@@ -615,7 +615,7 @@ PRIVATE void ata_sched(unsigned atadevid, unsigned flags, ...)
 		/* Wait operation to complete. */
 		if (req->flags & REQ_SYNC)
 			sleep(&dev->chain, PRIO_IO);
-
+		
 	enable_interrupts();
 }
 

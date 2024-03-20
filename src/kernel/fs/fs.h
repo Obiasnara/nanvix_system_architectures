@@ -85,6 +85,7 @@
 		struct buffer *hash_prev; /**< Previous buffer in the hash table. */
 		/**@}*/
 	};
+	
 
 	/**@}*/
 

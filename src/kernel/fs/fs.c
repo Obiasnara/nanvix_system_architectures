@@ -45,6 +45,7 @@ PUBLIC struct inode *root = NULL;
  */
 PUBLIC struct file filetab[NR_FILES];
 
+PUBLIC int test_mode_enabled = 0;
 /*
  * Gets an empty file descriptor table entry.
  */

@@ -33,7 +33,7 @@
  * a look on <nanvix/mm.h>
  */
 #if (NR_BUFFERS > 512)
-	#error "too many buffers"
+#error "too many buffers"
 #endif
 
 /*
@@ -43,8 +43,8 @@
  * allowed that situation, we might observe a poor
  * performance.
  */
-#if (IMAP_SIZE + ZMAP_SIZE > NR_BUFFERS/16)
-	#error "hard disk too small"
+#if (IMAP_SIZE + ZMAP_SIZE > NR_BUFFERS / 16)
+#error "hard disk too small"
 #endif
 
 /**
@@ -75,6 +75,10 @@ PRIVATE struct process *chain = NULL;
  */
 PRIVATE struct buffer hashtab[BUFFERS_HASHTAB_SIZE];
 
+// CACHE STATS
+PRIVATE long cache_hits = 0;
+PRIVATE long cache_misses = 0;
+
 /**
  * @brief Hash function for block buffer hash table.
  *
@@ -82,7 +86,7 @@ PRIVATE struct buffer hashtab[BUFFERS_HASHTAB_SIZE];
  *          table slot.
  */
 #define HASH(dev, block) \
-	(((dev)^(block))%BUFFERS_HASHTAB_SIZE)
+	(((dev) ^ (block)) % BUFFERS_HASHTAB_SIZE)
 
 /**
  * @brief Gets a block buffer from the block buffer cache.
@@ -100,7 +104,7 @@ PRIVATE struct buffer hashtab[BUFFERS_HASHTAB_SIZE];
  */
 PRIVATE struct buffer *getblk(dev_t dev, block_t num)
 {
-	unsigned i;         /* Hash table index. */
+	unsigned i;			/* Hash table index. */
 	struct buffer *buf; /* Buffer.           */
 
 	/* Should not happen. */
@@ -285,68 +289,16 @@ PUBLIC void brelse(struct buffer *buf)
 	enable_interrupts();
 }
 
-
-PUBLIC void buffer_valid_and_clean(struct buffer *buf) {
+PUBLIC void buffer_valid_and_clean(struct buffer *buf)
+{
 	buf->flags |= BUFFER_VALID;
 	buf->flags &= ~BUFFER_DIRTY;
 
 	// Release the buffer
 	brelse(buf);
 }
-/**
- * @brief Reads a block from a device.
- *
- * @details Reads the block numbered num synchronously from the device numbered
- *          dev.
- *
- * @param dev Device number.
- * @param num Block number.
- *
- * @returns Upon successful completion, a pointer to a buffer holding the
- *          requested block is returned. In this case, the block buffer is
- *          ensured to be locked. Upon failure, a NULL pointer is returned
- *          instead.
- *
- * @note The device number should be valid.
- * @note The block number should be valid.
- */
-PUBLIC struct buffer *breada(dev_t dev, block_t num)
-{
-	struct buffer *buf;
 
-	buf = getblk(dev, num);
-
-	/* Valid buffer? */
-	if (buf->flags & BUFFER_VALID)
-		return (buf);
-	
-	// Read a block synchronously
-	buf->flags |= BUFFER_SYNC_R;
-	bdev_readblk(buf);
-
-	/* Update buffer flags. */
-	buf->flags |= BUFFER_VALID;
-	buf->flags &= ~BUFFER_DIRTY;
-
-	// Let's prefetch a few blocks
-	struct buffer *prefetch_buf;
-	for (int i = 1; i < 32; i++) {
-		prefetch_buf = getblk(dev, num + i);
-
-		/* Valid buffer? */
-		if (buf->flags & BUFFER_VALID) {
-			// Buffer already present, no need to do anything
-			brelse(prefetch_buf);
-		} else {
-			// Read a block asynchronously
-			prefetch_buf->flags &= ~BUFFER_SYNC_R;
-			bdev_readblk(prefetch_buf);
-			// The read callback will release it
-		}
-	}
-
-	return (buf);
-}
+#define PREFETCH_ACTIVE
 
 /**
  * @brief Reads a block from a device.
@@ -367,11 +319,58 @@ PUBLIC struct buffer *breada(dev_t dev, block_t num)
  */
 PUBLIC struct buffer *bread(dev_t dev, block_t num)
 {
-	return breada(dev, num);
+	struct buffer *buf;
+	buf = getblk(dev, num);
+	/* Valid buffer? */
+	if (buf->flags & BUFFER_VALID)
+	{
+		// CACHE HIT
+		// kprintf("Cache hits: %d", cache_hits);
+		cache_hits++;
+		return (buf);
+	}
+
+	cache_misses++;
+	// kprintf("Cache misses: %d", cache_misses);
+	//  Read a block synchronously
+	buf->flags |= BUFFER_SYNC_R;
+	//kprintf(" sync flags: %x", buf->flags & BUFFER_SYNC_R);
+	bdev_readblk(buf);
+
+	/* Update buffer flags. */
+	buf->flags |= BUFFER_VALID;
+	buf->flags &= ~BUFFER_DIRTY;
+#ifdef PREFETCH_ACTIVE
+	if (test_mode_enabled)
+	{
+		kprintf("Prefetching active");
+		// Let's prefetch a few blocks
+		struct buffer *prefetch_buf;
+		for (int i = 1; i < 8; i++)
+		{
+			prefetch_buf = getblk(dev, num + i);
+
+			kprintf("async flags: %x", prefetch_buf->flags);
+			/*	 Valid buffer? */
+			if (prefetch_buf->flags & BUFFER_VALID)
+			{
+				kprintf("Buffer already present, no need to do anything");
+				// Buffer already present, no need to do anything
+				brelse(prefetch_buf);
+			}else {
+				kprintf("Buffer not present, reading it");
+				// Read a block asynchronously
+				prefetch_buf->flags &= ~BUFFER_SYNC_R;
+				kprintf("async flags: %x", prefetch_buf->flags);
+				bdev_readblk(prefetch_buf);
+				// The read callback will release it
+			}
+		}
+	}
+#endif
+
+	return (buf);
 }
-
-
-
 
 /**
  * @brief Writes a block buffer to the underlying device.

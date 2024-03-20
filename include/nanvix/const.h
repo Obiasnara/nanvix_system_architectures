@@ -58,7 +58,9 @@
 	/**@{*/
 
 	#define _NEED_NULL
+
 	#include <decl.h>
+
 
 	/**@}*/
 
