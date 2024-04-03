@@ -1,3 +1,4 @@
+
 /*
  * Copyright(C) 2011-2016 Pedro H. Penna <pedrohenriquepenna@gmail.com>
  *
@@ -16,22 +17,47 @@
  * You should have received a copy of the GNU General Public License
  * along with Nanvix. If not, see <http://www.gnu.org/licenses/>.
  */
+#ifndef _ASM_FILE_
 
+#include <nanvix/config.h>
+#include <nanvix/const.h>
+
+#ifdef SEM_ENABLED
 #ifndef SEM_H_
 #define SEM_H_
 
-	/**
-	 * @brief Comand values for semaphores.
-	 */
-	/**@{*/
-	#define GETVAL   0 /**< Returns the value of a semaphore. */
-	#define SETVAL   1 /**< Sets the value of a semaphore.    */
-	#define IPC_RMID 3 /**< Destroys a semaphore.            */
-	/**@}*/
 
-	/* Forward definitions. */
-	extern int semget(unsigned);
-	extern int semctl(int, int, int);
-	extern int semop(int, int);
+/**
+ * @brief Command values for semaphores.
+ */
+/**@{*/
+#define GETVAL 0   /**< Returns the value of a semaphore. */
+#define SETVAL 1   /**< Sets the value of a semaphore.    */
+#define IPC_RMID 3 /**< Destroys a semaphore.            */
+/**@}*/
+
+/* Forward definitions. */
+extern int semget(unsigned);
+extern int semctl(int, int, int);
+extern int semop(int, int);
+ 
+#define SEM_INVALID  0 /**< Invalid semaphore. */
+#define SEM_VALID    1 /**< Valid semaphore.   */
+
+struct sem
+{
+	int valid; /* Whether this entry in the semaphore table is valid (initialized) */
+	int key; /* The name identifying this semaphore	*/
+	int n; /* The semaphore's value. If zero, down() will be blocking */
+	/**
+	* @brief Chain of processes waiting on this semaphore
+	*/
+	struct process *sleep_chain;
+};
+
+// Forward definitions
+EXTERN struct sem sems[SEM_MAX];
 
 #endif /* SEM_H_ */
+#endif /* SEM_ENABLED */
+#endif /* _ASM_FILE_ */

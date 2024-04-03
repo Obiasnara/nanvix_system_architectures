@@ -43,6 +43,7 @@
 	#include <stdint.h>
 	#include <ustat.h>
 
+
 /*============================================================================*
  *                              Block Buffer Library                          *
  *============================================================================*/
@@ -67,13 +68,17 @@
 	EXTERN void blklock(buffer_t);
 	EXTERN void blkunlock(buffer_t);
 	EXTERN void brelse(buffer_t);
+	EXTERN void buffer_valid_and_clean(buffer_t);
+	//EXTERN buffer_t breada(dev_t, block_t);
 	EXTERN buffer_t bread(dev_t, block_t);
+	
 	EXTERN void bwrite(buffer_t);
 	EXTERN void buffer_dirty(buffer_t, int);
 	EXTERN void *buffer_data(const_buffer_t);
 	EXTERN dev_t buffer_dev(const_buffer_t);
 	EXTERN block_t buffer_num(const_buffer_t);
 	EXTERN int buffer_is_sync(const_buffer_t);
+	EXTERN int buffer_is_sync_read(const_buffer_t);
 
 	/**@}*/
 
@@ -181,7 +186,9 @@
 		off_t pos;           /* Read/write cursor's position. */
 		struct inode *inode; /* Underlying inode.             */
 	};
-
+	
+	EXTERN int test_mode_enabled;
+	
 	/*
 	 * File table.
 	 */

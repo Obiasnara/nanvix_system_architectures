@@ -33,7 +33,7 @@
  * a look on <nanvix/mm.h>
  */
 #if (NR_BUFFERS > 512)
-	#error "too many buffers"
+#error "too many buffers"
 #endif
 
 /*
@@ -43,8 +43,8 @@
  * allowed that situation, we might observe a poor
  * performance.
  */
-#if (IMAP_SIZE + ZMAP_SIZE > NR_BUFFERS/16)
-	#error "hard disk too small"
+#if (IMAP_SIZE + ZMAP_SIZE > NR_BUFFERS / 16)
+#error "hard disk too small"
 #endif
 
 /**
@@ -75,6 +75,10 @@ PRIVATE struct process *chain = NULL;
  */
 PRIVATE struct buffer hashtab[BUFFERS_HASHTAB_SIZE];
 
+// CACHE STATS
+PRIVATE long cache_hits = 0;
+PRIVATE long cache_misses = 0;
+
 /**
  * @brief Hash function for block buffer hash table.
  *
@@ -82,7 +86,7 @@ PRIVATE struct buffer hashtab[BUFFERS_HASHTAB_SIZE];
  *          table slot.
  */
 #define HASH(dev, block) \
-	(((dev)^(block))%BUFFERS_HASHTAB_SIZE)
+	(((dev) ^ (block)) % BUFFERS_HASHTAB_SIZE)
 
 /**
  * @brief Gets a block buffer from the block buffer cache.
@@ -100,7 +104,7 @@ PRIVATE struct buffer hashtab[BUFFERS_HASHTAB_SIZE];
  */
 PRIVATE struct buffer *getblk(dev_t dev, block_t num)
 {
-	unsigned i;         /* Hash table index. */
+	unsigned i;			/* Hash table index. */
 	struct buffer *buf; /* Buffer.           */
 
 	/* Should not happen. */
@@ -285,6 +289,17 @@ PUBLIC void brelse(struct buffer *buf)
 	enable_interrupts();
 }
 
+PUBLIC void buffer_valid_and_clean(struct buffer *buf)
+{
+	buf->flags |= BUFFER_VALID;
+	buf->flags &= ~BUFFER_DIRTY;
+
+	// Release the buffer
+	brelse(buf);
+}
+
+#define PREFETCH_ACTIVE
+
 /**
  * @brief Reads a block from a device.
  *
@@ -305,18 +320,54 @@ PUBLIC void brelse(struct buffer *buf)
 PUBLIC struct buffer *bread(dev_t dev, block_t num)
 {
 	struct buffer *buf;
-
 	buf = getblk(dev, num);
-
 	/* Valid buffer? */
 	if (buf->flags & BUFFER_VALID)
+	{
+		// CACHE HIT
+		// kprintf("Cache hits: %d", cache_hits);
+		cache_hits++;
 		return (buf);
+	}
 
+	cache_misses++;
+	// kprintf("Cache misses: %d", cache_misses);
+	//  Read a block synchronously
+	buf->flags |= BUFFER_SYNC_R;
+	//kprintf(" sync flags: %x", buf->flags & BUFFER_SYNC_R);
 	bdev_readblk(buf);
 
 	/* Update buffer flags. */
 	buf->flags |= BUFFER_VALID;
 	buf->flags &= ~BUFFER_DIRTY;
+#ifdef PREFETCH_ACTIVE
+	if (test_mode_enabled)
+	{
+		kprintf("Prefetching active");
+		// Let's prefetch a few blocks
+		struct buffer *prefetch_buf;
+		for (int i = 1; i < 8; i++)
+		{
+			prefetch_buf = getblk(dev, num + i);
+
+			kprintf("async flags: %x", prefetch_buf->flags);
+			/*	 Valid buffer? */
+			if (prefetch_buf->flags & BUFFER_VALID)
+			{
+				kprintf("Buffer already present, no need to do anything");
+				// Buffer already present, no need to do anything
+				brelse(prefetch_buf);
+			}else {
+				kprintf("Buffer not present, reading it");
+				// Read a block asynchronously
+				prefetch_buf->flags &= ~BUFFER_SYNC_R;
+				kprintf("async flags: %x", prefetch_buf->flags);
+				bdev_readblk(prefetch_buf);
+				// The read callback will release it
+			}
+		}
+	}
+#endif
 
 	return (buf);
 }
@@ -472,6 +523,11 @@ PUBLIC inline int buffer_is_sync(const struct buffer *buf)
 	return (buf->flags & BUFFER_SYNC);
 }
 
+PUBLIC inline int buffer_is_sync_read(const struct buffer *buf)
+{
+	return (buf->flags & BUFFER_SYNC_R);
+}
+
 /**
  * @brief Initializes the bock buffer cache.
  *
@@ -495,7 +551,7 @@ PUBLIC void binit(void)
 		buffers[i].data = ptr;
 		buffers[i].count = 0;
 		buffers[i].flags =
-			~(BUFFER_VALID | BUFFER_LOCKED | BUFFER_DIRTY | BUFFER_SYNC);
+			~(BUFFER_VALID | BUFFER_LOCKED | BUFFER_DIRTY | BUFFER_SYNC | BUFFER_SYNC_R);
 		buffers[i].chain = NULL;
 		buffers[i].free_next =
 			(i + 1 == NR_BUFFERS) ? &free_buffers : &buffers[i + 1];

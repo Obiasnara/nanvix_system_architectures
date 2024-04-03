@@ -23,7 +23,7 @@
 #include <nanvix/hal.h>
 #include <nanvix/pm.h>
 #include <signal.h>
-
+#include <nanvix/klib.h> // For random number generator (krand)
 /**
  * @brief Schedules a process to execution.
  *
@@ -67,12 +67,18 @@ PUBLIC void yield(void)
 	struct process *p;		  /* Working process.     */
 	struct process *candidat; /* candidat process to run. */
 
+
+
 	/* Re-schedule process for execution. */
 	if (curr_proc->state == PROC_RUNNING)
 		sched(curr_proc);
 
 	/* Remember this process. */
 	last_proc = curr_proc;
+    // Declare total number of tickets
+    int tot_ticket = 0;
+
+
 
 	/* Check alarm. */
 	for (p = FIRST_PROC; p <= LAST_PROC; p++)
@@ -80,95 +86,32 @@ PUBLIC void yield(void)
 		/* Skip invalid processes. */
 		if (!IS_VALID(p))
 			continue;
-
 		/* Alarm has expired. */
 		if ((p->alarm) && (p->alarm < ticks))
 			p->alarm = 0, sndsig(p, SIGALRM);
+		tot_ticket += 41 - (p->nice) + p->utime+p->ktime + p->counter;
 	}
-
-	/* Choose a process to run candidat. */
-	candidat = IDLE;
-	for (p = FIRST_PROC; p <= LAST_PROC; p++)
-	{
-		// Skip non-ready process.
-		if (p->state != PROC_READY)
-			continue;
-		if (candidat == IDLE)
-		{ // If previous candidate is IDLE, then candidat is p
-			candidat = p;
-			continue;
-		}
-		else if (p == IDLE) // If the next candidate is IDLE, then skip
-		{
-			continue;
-		}
-
-		// Combine priority and nice value.
-		// 3 scenarios: 1. priority is negative and nice is negative 2. priority is negative and nice is positive (vice versa) 3. priority is positive and nice is positive
-
-		// First step out everything to positive
-		int priority = p->priority;
-		int nice = p->nice;
-		if (priority < 0)
-		{
-			priority = -priority;
-		}
-		else
-		{
-			priority = priority;
-		}
-		if (nice < 0)
-		{
-			nice = -nice;
-		}
-		else
-		{
-			nice = nice;
-		}
-		int candidat_priority = candidat->priority;
-		int candidat_nice = candidat->nice;
-		if (candidat_priority < 0)
-		{
-			candidat_priority = -candidat_priority;
-		}
-		else
-		{
-			candidat_priority = candidat_priority;
-		}
-		if (candidat_nice < 0)
-		{
-			candidat_nice = -candidat_nice;
-		}
-		else
-		{
-			candidat_nice = candidat_nice;
-		}
-
-		// Second step, combine priority and nice value
-		int p_combined = priority + nice;
-		int candidat_combined = candidat_priority + candidat_nice;
-
-		// Third step, compare
-		if (p_combined > candidat_combined)
-		{
-			candidat->counter++;
-			candidat = p;
-		}
-		else if (p_combined == candidat_combined && p->counter > candidat->counter)
-		{
-			candidat->counter++;
-			candidat = p;
-		}
-		else
-		{
+ 
+    candidat = IDLE;
+    int plage = 0;
+    int ticket_gagnant = ticks % tot_ticket;
+    for (p = FIRST_PROC; p <= LAST_PROC; p++)
+    {
+        if (p->state != PROC_READY)
+            continue;
+        plage += 41 - (p->nice) + p->utime+p->ktime + p->counter;
+        if(plage > ticket_gagnant){
+            candidat = p;
+        } else {
 			p->counter++;
 		}
-	}
+    }
 
 	/* Switch to candidat process. */
 	candidat->priority = PRIO_USER;
 	candidat->state = PROC_RUNNING;
 	candidat->counter = PROC_QUANTUM;
+
 	if (curr_proc != candidat)
 		switch_to(candidat);
 }

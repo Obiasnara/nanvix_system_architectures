@@ -615,7 +615,7 @@ PRIVATE void ata_sched(unsigned atadevid, unsigned flags, ...)
 		/* Wait operation to complete. */
 		if (req->flags & REQ_SYNC)
 			sleep(&dev->chain, PRIO_IO);
-
+		
 	enable_interrupts();
 }
 
@@ -646,6 +646,7 @@ ata_sched_raw(unsigned atadevid, block_t num, void *buf, size_t size, unsigned f
  */
 PRIVATE int ata_readblk(unsigned minor, buffer_t buf)
 {
+	unsigned flags; /* Request flags. */
 	struct atadev *dev;
 
 	/* Invalid minor device. */
@@ -658,7 +659,8 @@ PRIVATE int ata_readblk(unsigned minor, buffer_t buf)
 	if (!(dev->flags & ATADEV_VALID))
 		return (-EINVAL);
 
-	ata_sched_buffered(minor, buf, REQ_BUF | REQ_SYNC);
+	flags = REQ_BUF | (buffer_is_sync_read(buf) ? REQ_SYNC : 0);
+	ata_sched_buffered(minor, buf, flags);
 
 	return (0);
 }
@@ -935,6 +937,9 @@ PRIVATE void ata_handler(int atadevid)
 			word = inputw(pio_ports[bus][ATA_REG_DATA]);
 			buf[i] = word & 0xff;
 			buf[i + 1] = (word >> 8) & 0xff;
+			if(!(req->flags & REQ_SYNC)) {
+				buffer_valid_and_clean(req->u.buffered.buf);	
+			} 
 		}
 	}
 

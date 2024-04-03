@@ -204,6 +204,7 @@
     	unsigned alarm;          /**< Alarm.                  */
 		struct process *next;    /**< Next process in a list. */
 		struct process **chain;  /**< Sleeping chain.         */
+		int ntickets;			/**< Number of tickets.      */
 		/**@}*/
 	};
 
@@ -222,6 +223,7 @@
 
     EXTERN void sndsig(struct process *, int);
 	EXTERN void wakeup(struct process **);
+	EXTERN void wakeup_one(struct process **);
 	EXTERN void yield(void);
 
 	/**

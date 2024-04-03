@@ -46,7 +46,6 @@ PUBLIC ssize_t sys_read(int fd, void *buf, size_t n)
 		return (-EBADF);
 
 #if (EDUCATIONAL_KERNEL == 0)
-
 	/* Invalid buffer. */
 	if (!chkmem(buf, n, MAY_WRITE))
 		return (-EINVAL);
@@ -77,13 +76,14 @@ PUBLIC ssize_t sys_read(int fd, void *buf, size_t n)
 	/* Pipe file. */
 	else if (S_ISFIFO(i->mode))
 	{
-		kprintf("read from pipe");
 		count = pipe_read(i, buf, n);
 	}
 
 	/* Regular file/directory. */
-	else if ((S_ISDIR(i->mode)) || (S_ISREG(i->mode)))
+	else if ((S_ISDIR(i->mode)) || (S_ISREG(i->mode))){
+		kprintf("file_read\n");
 		count = file_read(i, buf, n, f->pos);
+	}
 
 	/* Unknown file type. */
 	else
@@ -97,4 +97,11 @@ PUBLIC ssize_t sys_read(int fd, void *buf, size_t n)
 	f->pos += count;
 
 	return (count);
+}
+
+PUBLIC int sys_test(void)
+{
+	test_mode_enabled = 1;
+	kprintf("sys_test");
+	return 0;
 }
