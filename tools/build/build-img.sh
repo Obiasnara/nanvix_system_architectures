@@ -157,7 +157,8 @@ function copy_files
 			bin/cp.minix $1 $file /bin/$filename $ROOTUID $ROOTGID
 		fi;
 	done
-
+	
+	# Include a large file for I/O testing
 	bin/cp.minix $1 bigfile.bin /bigfile.bin $ROOTUID $ROOTGID
 }
 
